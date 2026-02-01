@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
 import 'package:izaje_carga/config.dart';
 import 'package:http_parser/http_parser.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class SubirCertificadoPage extends StatefulWidget {
   const SubirCertificadoPage({super.key});
@@ -93,7 +94,12 @@ class _SubirCertificadoPageState extends State<SubirCertificadoPage> {
 
       final uri = Uri.parse(Config.subirCertificadoUrl());
       final request = http.MultipartRequest("POST", uri);
-
+      // --- CAMBIO AQUÍ ---
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
+      if (token != null) {
+        request.headers['Authorization'] = 'Bearer $token';
+      }
       // Usamos los controladores o las variables, asegurando que tengan el valor
       request.fields['cedula'] = cedula;
       request.fields['organismo_acreditador'] = organismo;

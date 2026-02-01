@@ -36,7 +36,8 @@ class _MenuPageState extends State<MenuPage> {
 
   Future<void> _logout(BuildContext context) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.clear();
+    await prefs.clear(); // Esto borra 'usuario' Y 'token', así que está perfecto.
+
     Navigator.pushAndRemoveUntil(
       context,
       MaterialPageRoute(builder: (context) => LoginScreen()),

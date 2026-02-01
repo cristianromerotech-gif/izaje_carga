@@ -47,6 +47,13 @@ class _LoginScreenState extends State<LoginScreen> {
         SharedPreferences prefs = await SharedPreferences.getInstance();
         await prefs.setString('usuario', jsonEncode(data['usuario']));
 
+        // --- CAMBIO AQUÍ ---
+        // 1. Guardar el Token
+        await prefs.setString('token', data['token']);
+        // 2. Guardar el Usuario
+        await prefs.setString('usuario', jsonEncode(data['usuario']));
+        // -------------------
+
         Future.delayed(Duration(milliseconds: 800), () {
           Navigator.pushReplacementNamed(context, '/menu');
         });

@@ -477,7 +477,13 @@ class _InspeccionPageState extends State<InspeccionPage> {
     try {
       final uri = Uri.parse(Config.inspeccionesUrl());
       final request = http.MultipartRequest("POST", uri);
+// --- CAMBIO AQUÍ: OBTENER Y AGREGAR TOKEN ---
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
 
+      if (token != null) {
+        request.headers['Authorization'] = 'Bearer $token';
+      }
       // Campos de texto
       formData.forEach((key, value) {
         if (!key.startsWith("foto") && value != null && value.toString().isNotEmpty) {

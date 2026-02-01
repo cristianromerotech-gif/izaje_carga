@@ -72,9 +72,14 @@ class _EslingaPageState extends State<EslingaPage> {
     });
 
     try {
+      // --- CAMBIO AQUÍ ---
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
+
       final res = await http.post(
         Uri.parse(Config.eslingasUrl()),
-        headers: {"Content-Type": "application/json"},
+        headers: {"Content-Type": "application/json",
+          "Authorization": "Bearer $token"},
         body: jsonEncode(formData),
       );
 
