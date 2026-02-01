@@ -90,7 +90,8 @@ class _SubirCertificadoPageState extends State<SubirCertificadoPage> {
     });
 
     try {
-      final uri = Uri.parse("${Config.baseUrl}/certificados/upload");
+
+      final uri = Uri.parse(Config.subirCertificadoUrl());
       final request = http.MultipartRequest("POST", uri);
 
       // Usamos los controladores o las variables, asegurando que tengan el valor

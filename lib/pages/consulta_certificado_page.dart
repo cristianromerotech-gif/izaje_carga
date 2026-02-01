@@ -25,7 +25,8 @@ class _ConsultaCertificadosPageState extends State<ConsultaCertificadosPage> {
 
 // Función para descargar archivo
   Future<void> descargarCertificado(String idAsistencia) async {
-    final url = Uri.parse("${Config.baseUrl}/certificados/certificado/$idAsistencia");
+
+    final url = Uri.parse("${Config.baseUrl}/api/certificados/certificado/$idAsistencia");
     final response = await http.get(url);
 
     if (response.statusCode == 200) {

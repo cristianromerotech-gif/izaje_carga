@@ -36,7 +36,7 @@ class _RegistroUsuarioPageState extends State<RegistroUsuarioPage> {
     try {
       final res = await http.post(
 
-        Uri.parse(Config.loginUrl()),
+        Uri.parse(Config.registroUrl()),
         headers: {"Content-Type": "application/json"},
         body: json.encode(formData),
       );
