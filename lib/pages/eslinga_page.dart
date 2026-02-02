@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
-import 'package:izaje_carga/config.dart';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:flutter/services.dart';
-import 'inspeccion_page.dart';
+import '../config.dart'; // Asegúrate que este archivo exista
 
 class EslingaPage extends StatefulWidget {
   const EslingaPage({super.key});
@@ -15,19 +14,21 @@ class EslingaPage extends StatefulWidget {
 
 class _EslingaPageState extends State<EslingaPage> {
   final _formKey = GlobalKey<FormState>();
-  final TextEditingController _fechaController = TextEditingController();
-  bool isLoading = false;
 
-  Map<String, dynamic> formData = {
-    "serial": "",
-    "tipo_eslinga": "",
-    "fabricante": "",
-    "fecha_fabricacion": "",
-    "longitud": "",
-    "ancho": "",
-    "estado_eslinga": "",
-    "usuario_idusuario": null,
-  };
+  // Controladores
+  final TextEditingController _fechaCtrl = TextEditingController();
+
+  // Variables del formulario
+  String serial = "";
+  String tipoEslinga = "Eslinga Sintética (Textiles)";
+  String fabricante = "";
+  String fechaFabricacion = "";
+  String longitud = "";
+  String ancho = "";
+  String estadoEslinga = "CONFORME";
+
+  bool isLoading = false;
+  String mensaje = "";
 
   final List<String> tiposEslinga = [
     "Eslinga Sintética (Textiles)",
@@ -35,294 +36,166 @@ class _EslingaPageState extends State<EslingaPage> {
     "Eslinga de Cable de Acero (Estrobos)",
   ];
 
-  String mensaje = "";
-  bool eslingaCreada = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadUsuario();
-  }
-
   @override
   void dispose() {
-    _fechaController.dispose();
+    _fechaCtrl.dispose();
     super.dispose();
   }
 
-  Future<void> _loadUsuario() async {
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    String? usuarioStr = prefs.getString('usuario');
-    if (usuarioStr != null) {
-      final usuario = jsonDecode(usuarioStr);
-      setState(() {
-        formData["usuario_idusuario"] = usuario['idusuario'];
-      });
-    }
-  }
-
-  Future<void> handleSubmit() async {
+  Future<void> _guardarEslinga() async {
     if (!_formKey.currentState!.validate()) return;
     _formKey.currentState!.save();
 
     setState(() {
       isLoading = true;
       mensaje = "";
-      eslingaCreada = false;
     });
 
     try {
-      // --- CAMBIO AQUÍ ---
+      // 1. Obtener credenciales guardadas
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('token');
+      final usuarioString = prefs.getString('usuario');
 
-      final res = await http.post(
+      if (token == null || usuarioString == null) {
+        throw Exception("Sesión expirada. Por favor inicie sesión nuevamente.");
+      }
+
+      final usuario = jsonDecode(usuarioString);
+      final int usuarioId = usuario['idusuario'];
+
+      // 2. Preparar datos
+      final Map<String, dynamic> datos = {
+        "serial": serial,
+        "tipo_eslinga": tipoEslinga,
+        "fabricante": fabricante,
+        "fecha_fabricacion": fechaFabricacion,
+        "longitud": longitud,
+        "ancho": ancho,
+        "estado_eslinga": estadoEslinga,
+        "usuario_idusuario": usuarioId
+      };
+
+      // 3. Enviar Petición
+      final response = await http.post(
         Uri.parse(Config.eslingasUrl()),
-        headers: {"Content-Type": "application/json",
-          "Authorization": "Bearer $token"},
-        body: jsonEncode(formData),
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer $token" // <--- SEGURIDAD
+        },
+        body: jsonEncode(datos),
       );
 
-      if (res.statusCode == 200 || res.statusCode == 201) {
-        setState(() {
-          mensaje = "✅ Eslinga creada correctamente";
-          eslingaCreada = true;
-        });
-      } else {
-        final data = jsonDecode(res.body);
-        setState(() {
-          mensaje = data['mensaje'] ?? "❌ Error al crear eslinga";
-        });
+      final respData = jsonDecode(response.body);
+
+      setState(() {
+        isLoading = false;
+        mensaje = response.statusCode == 200 || response.statusCode == 201
+            ? "✅ ${respData['mensaje'] ?? 'Eslinga creada exitosamente'}"
+            : "❌ ${respData['mensaje'] ?? 'Error al crear eslinga'}";
+      });
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        _formKey.currentState!.reset();
+        _fechaCtrl.clear();
+        // Opcional: regresar al menú
+        // Future.delayed(Duration(seconds: 1), () => Navigator.pop(context));
       }
+
     } catch (e) {
       setState(() {
-        mensaje = "❌ Error al conectar con el servidor";
+        isLoading = false;
+        mensaje = "❌ Error: $e";
       });
     }
-
-    setState(() => isLoading = false);
   }
 
-  // ================= Helpers UI =================
-  Widget _input({
-    required String label,
-    required String keyForm,
-    IconData? icon,
-    TextInputType keyboardType = TextInputType.text,
-    List<TextInputFormatter>? inputFormatters,
-    String? hint,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: TextFormField(
-        decoration: InputDecoration(
-          labelText: label,
-          hintText: hint,
-          prefixIcon: icon != null ? Icon(icon) : null,
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-        ),
-        keyboardType: keyboardType,
-        inputFormatters: inputFormatters,
-        validator: (val) => (val == null || val.isEmpty) ? "Campo obligatorio" : null,
-        onSaved: (val) => formData[keyForm] = val,
-      ),
-    );
-  }
-
-  Widget _dateInput() {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: TextFormField(
-        controller: _fechaController,
-        readOnly: true,
-        decoration: InputDecoration(
-          labelText: "Fecha de fabricación",
-          prefixIcon: const Icon(Icons.calendar_today),
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-        ),
-        validator: (val) => (val == null || val.isEmpty) ? "Seleccione una fecha" : null,
-        onTap: () async {
-          FocusScope.of(context).unfocus();
-          final picked = await showDatePicker(
-            context: context,
-            initialDate: DateTime.now(),
-            firstDate: DateTime(2000),
-            lastDate: DateTime.now(),
-          );
-          if (picked != null) {
-            final f = picked.toIso8601String().split("T")[0];
-            setState(() {
-              _fechaController.text = f;
-              formData["fecha_fabricacion"] = f;
-            });
-          }
-        },
-      ),
-    );
-  }
-
-  Widget _dropdownTipoEslinga() {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: DropdownButtonFormField<String>(
-        isExpanded: true, // ✅ evita overflow
-        decoration: InputDecoration(
-          labelText: "Tipo de eslinga",
-          prefixIcon: const Icon(Icons.category),
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-        ),
-        value: formData["tipo_eslinga"].isEmpty ? null : formData["tipo_eslinga"],
-        items: tiposEslinga
-            .map((tipo) => DropdownMenuItem<String>(value: tipo, child: Text(tipo)))
-            .toList(),
-        onChanged: (val) => setState(() => formData["tipo_eslinga"] = val ?? ""),
-        validator: (val) => val == null || val.isEmpty ? "Seleccione el tipo de eslinga" : null,
-      ),
-    );
-  }
-
-  Widget _dropdownEstado() {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: DropdownButtonFormField<String>(
-        decoration: InputDecoration(
-          labelText: "Estado",
-          prefixIcon: const Icon(Icons.verified),
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-        ),
-        value: formData["estado_eslinga"].isEmpty ? null : formData["estado_eslinga"],
-        items: const [
-          DropdownMenuItem(value: "CONFORME", child: Text("CONFORME")),
-          DropdownMenuItem(value: "NO CONFORME", child: Text("NO CONFORME")),
-        ],
-        onChanged: (val) => setState(() => formData["estado_eslinga"] = val ?? ""),
-        validator: (val) => val == null || val.isEmpty ? "Seleccione un estado" : null,
-      ),
-    );
-  }
-
-  // ================= UI =================
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text("Crear Eslinga"),
-        backgroundColor: Colors.blue.shade800,
-      ),
+      appBar: AppBar(title: const Text("Crear Eslinga"), backgroundColor: Colors.blue[900]),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
-        child: Card(
-          elevation: 3,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Form(
-              key: _formKey,
-              child: Column(
+        child: Form(
+          key: _formKey,
+          child: Column(
+            children: [
+              TextFormField(
+                decoration: const InputDecoration(labelText: "Serial", prefixIcon: Icon(Icons.qr_code), border: OutlineInputBorder()),
+                onSaved: (v) => serial = v!,
+                validator: (v) => v!.isEmpty ? "Requerido" : null,
+              ),
+              const SizedBox(height: 15),
+              DropdownButtonFormField(
+                value: tipoEslinga,
+                decoration: const InputDecoration(labelText: "Tipo", border: OutlineInputBorder()),
+                items: tiposEslinga.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+                onChanged: (v) => setState(() => tipoEslinga = v.toString()),
+              ),
+              const SizedBox(height: 15),
+              TextFormField(
+                decoration: const InputDecoration(labelText: "Fabricante", prefixIcon: Icon(Icons.business), border: OutlineInputBorder()),
+                onSaved: (v) => fabricante = v!,
+              ),
+              const SizedBox(height: 15),
+              TextFormField(
+                controller: _fechaCtrl,
+                decoration: const InputDecoration(labelText: "Fecha Fabricación", prefixIcon: Icon(Icons.calendar_today), border: OutlineInputBorder()),
+                readOnly: true,
+                onTap: () async {
+                  DateTime? picked = await showDatePicker(context: context, initialDate: DateTime.now(), firstDate: DateTime(2000), lastDate: DateTime.now());
+                  if(picked != null) {
+                    final f = "${picked.year}-${picked.month.toString().padLeft(2,'0')}-${picked.day.toString().padLeft(2,'0')}";
+                    _fechaCtrl.text = f;
+                    fechaFabricacion = f;
+                  }
+                },
+                validator: (v) => v!.isEmpty ? "Requerido" : null,
+              ),
+              const SizedBox(height: 15),
+              Row(
                 children: [
-                  _input(
-                    label: "Serial",
-                    keyForm: "serial",
-                    icon: Icons.qr_code,
-                    hint: "Ej: SL-2026-0001",
-                  ),
-                  _dropdownTipoEslinga(),
-                  _input(
-                    label: "Fabricante",
-                    keyForm: "fabricante",
-                    icon: Icons.factory,
-                  ),
-                  _dateInput(),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _input(
-                          label: "Longitud (m)",
-                          keyForm: "longitud",
-                          icon: Icons.straighten,
-                          keyboardType: TextInputType.number,
-                          inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: _input(
-                          label: "Ancho (mm)",
-                          keyForm: "ancho",
-                          icon: Icons.swap_horiz,
-                          keyboardType: TextInputType.number,
-                          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                        ),
-                      ),
-                    ],
-                  ),
-                  _dropdownEstado(),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: isLoading ? null : handleSubmit,
-                      icon: isLoading
-                          ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                      )
-                          : const Icon(Icons.save),
-                      label: const Text("Crear Eslinga"),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blue.shade700,
-                        minimumSize: const Size(double.infinity, 50),
-                      ),
+                  Expanded(
+                    child: TextFormField(
+                      decoration: const InputDecoration(labelText: "Longitud (m)", border: OutlineInputBorder()),
+                      keyboardType: TextInputType.number,
+                      onSaved: (v) => longitud = v!,
                     ),
                   ),
-                  if (eslingaCreada)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 12),
-                      child: SizedBox(
-                        width: double.infinity,
-                        child: OutlinedButton.icon(
-                          onPressed: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => const InspeccionPage(),
-                              ),
-                            );
-                          },
-                          icon: const Icon(Icons.assignment_turned_in),
-                          label: const Text("Ir a Inspección"),
-                          style: OutlinedButton.styleFrom(
-                            minimumSize: const Size(double.infinity, 50),
-                          ),
-                        ),
-                      ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: TextFormField(
+                      decoration: const InputDecoration(labelText: "Ancho (mm)", border: OutlineInputBorder()),
+                      keyboardType: TextInputType.number,
+                      onSaved: (v) => ancho = v!,
                     ),
-                  if (mensaje.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 16),
-                      child: Row(
-                        children: [
-                          Icon(
-                            mensaje.startsWith("✅") ? Icons.check_circle : Icons.error,
-                            color: mensaje.startsWith("✅") ? Colors.green : Colors.red,
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              mensaje,
-                              style: TextStyle(
-                                color: mensaje.startsWith("✅") ? Colors.green : Colors.red,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+                  ),
                 ],
               ),
-            ),
+              const SizedBox(height: 15),
+              DropdownButtonFormField(
+                value: estadoEslinga,
+                decoration: const InputDecoration(labelText: "Estado Inicial", border: OutlineInputBorder()),
+                items: ["CONFORME", "NO CONFORME"].map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+                onChanged: (v) => setState(() => estadoEslinga = v.toString()),
+              ),
+              const SizedBox(height: 25),
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: ElevatedButton.icon(
+                  onPressed: isLoading ? null : _guardarEslinga,
+                  icon: isLoading ? Container() : const Icon(Icons.save),
+                  label: isLoading ? const CircularProgressIndicator(color: Colors.white) : const Text("Guardar Eslinga"),
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.blue[900]),
+                ),
+              ),
+              if (mensaje.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.all(15.0),
+                  child: Text(mensaje, style: TextStyle(color: mensaje.startsWith("✅") ? Colors.green : Colors.red, fontWeight: FontWeight.bold)),
+                )
+            ],
           ),
         ),
       ),
