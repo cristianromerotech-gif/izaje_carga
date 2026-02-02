@@ -26,7 +26,7 @@ class MyApp extends StatelessWidget {
       routes: {
         '/login': (context) =>  LoginScreen(),
         '/registro': (context) =>  RegistroUsuarioPage(),
-        '/menu': (context) => MenuScreen(),
+        '/menu': (context) => MenuPage(),
         '/eslinga': (context) => EslingaPage(),
         '/inspeccion': (context) => InspeccionPage(),
       },
